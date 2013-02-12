@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<title>IO search</title>
+
+<link rel="stylesheet" href="css/main.css" />
+
+</head>
+
+<body>
+
+<div id="container">
+
+<h1>Edge Conference video search</h1>
+
+<iframe id="youTubePlayer" class="youtube-player" type="text/html" width="640" height="385" frameborder="0"></iframe>
+
+<div id="info">
+	<input id="query" type="text" autofocus="true"  />
+  <div id="queryExplanation">Enter text to search transcripts, then click on a result to view video.</div>
+</div> <!-- info -->
+
+<div id="numResults"></div>
+
+<!-- begin results container, content generated dynamically -->
+<div id="results"></div>
+<!-- end results container, content generated dynamically -->
+
+<details>
+  <summary>Huh?</summary>
+  <p>Enter text to search the manual transcripts from the Edge Conference in London, 9 February 2013.</p>
+  <p style="border-bottom: 1px solid #444; padding: 0 0 1em 0;">Click on a result to view video.</p>
+  <p>A timed transcript file in VTT format for each video is stored in the <em>tracks</em> folder. VTT files look like this (each item is called a cue): </p>
+  <pre>
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:03.820
+
+2
+00:00:03.820 --> 00:00:05.940
+JAKE ARCHIBALD: So what you all
+think of AppCache?
+
+3
+00:00:05.940 --> 00:00:07.247
+AppCache is 110% awesome!
+
+4
+00:00:07.247 --> 00:00:10.110
+[AUDIENCE CHEERING]
+
+...
+  </pre>
+  <p>A dummy video and track element is created for each VTT file.</p>
+  <p>An entry in a WebSQL database is created for each cue of each track. Each database entry has the cue startTime, cue text, and YouTube video ID.</p>
+  <p>When text is entered in the query input element, the cue database is searched using a read query with LIKE, and results are displayed.</p>
+  <p>When a result is clicked, the <code>src</code> is set for the embedded YouTube player, with a start value corresponding to the start time of the cue.</p>
+  <p>Source code is available from <a href = "https://github.com/samdutton/tracksearch">github.com/samdutton.com/tracksearch</a>.</p>
+
+</details>
+
+</div>
+
+
+<script src="js/lib/jquery-1.8.2.js"></script>
+<script src="js/lib/callPlayer.js"></script>
+<script src="js/webDatabase.js"></script>
+<script src="js/videos.js"></script>
+<script src="js/main.js"></script>
+<script src="js/lib/ga.js"></script>
+</body>
+
+</html>
