@@ -1,11 +1,11 @@
-var tracksPath = "tracks/";
+var trackPath = "tracks/";
 var trackSuffix = ".vtt";
 var resultsDiv = $("#results");
 var query;
 var $query = $("#query");
 var $numResults = $("#numResults");
 
-$("h1").click(function(){console.log(this)});
+getVideoData()
 
 // do query if URL has query string
 var href = document.location.href;
@@ -16,34 +16,62 @@ if (q){
 	$numResults.html("Searching...");
 	setTimeout(function(){
 		getResults(query);
-	}, 1500); // magic number!
+	}, 1500); // magic number! gives time for data to be downloaded
 }
 
-function insertCue(tx, videoId, cue){
-  tx.executeSql('INSERT INTO cues (videoId, startTime, text) VALUES (?, ?, ?)',
-    [videoId, cue.startTime, cue.text]);
+function getVideoData() {
+	// the keys for the videos object, defined in videos.js, are YouTube IDs
+	for (var id in videos) {
+		getCueData(id); // get cue data from .vtt files in tracks folder
+		getYouTubeData(id); // update video data from the YouTube data API
+	}
 }
 
-var numTracks = 0;
-// insert cues for a TextTrack
-function insertCues(videoId, cues) {
-  db.transaction(function(tx){
-	  for (var i = 0; i != cues.length; ++i) {
-	  	var cue = cues[i];
-	  	if (typeof cue !== "undefined" && cue.text !== "") {
-				insertCue(tx, videoId, cues[i]);
-			}
-	  }
-  }, transactionErrorHandler,
-  function(){
-  	// window.numTracks += 1;
-  	// if (window.numTracks < 165){
-  	// 	$query[0].disabled = false;
-  	// }
-  });
-}
+// update video data from YouTube data API
+function getCueData(videoId){
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", trackPath + videoId + trackSuffix);
+	xhr.onreadystatechange = function() {
+	  if (xhr.readyState === 4 && xhr.status === 200) {
+	  	var track = xhr.responseText;
+	  	var lines = track.match(/^.*((\r\n|\n|\r)|$)/gm);
+	  	var cues = [];
 
-// http://storage.googleapis.com/io2012/headshots/mkwst.jpg
+	  	var currentCue = {};
+	  	for (var i = 0; i != lines.length; ++i){
+	  		var line = lines[i];
+	  		if (line.match(/^(\s|WEBVTT)\s*$/)){
+	  			console.log("ignored", line);
+	  			continue;
+	  		} else if (line.match(/^(\d+\s*$/)){ // line is cue ID (digits) so push the current cue
+	  			currentCue
+	  		} else { // line is timings or text
+	  			var timings = line.match(/\d\d:\d\d:\d\d.\d\d\d/g);
+	  			if (timings.length === 1) {
+	  				console.log("Error getting timings: line is " + line);
+	  			}
+	  			if (timings.length === 2) { // line is timing
+	  				currentCue.startTime = timings[0];
+	  				currentCue.endTime = timing[1];
+					} else { // line is cue text
+						currentCue.text += line;
+					}
+	  		}
+	  	}
+	  	videos[videoId].cues = cues; // add cues retrieved to video data
+  	}
+  	// check if finished
+  	for (id in videos){
+  		// check if there is a video without cues
+  		if (!videos[id].cues){
+  			console.log("videos[id].cues: ", videos[id].cues);
+  			break;
+  		}
+//  		console.log(videos); // all videos now have cue data
+  	}
+  }
+	xhr.send();
+}
 
 // update video data from YouTube data API
 function getYouTubeData(videoId){
@@ -59,44 +87,21 @@ function getYouTubeData(videoId){
 	xhr.send();
 }
 
-var TRACKPATH = "tracks/";
-// update video data from YouTube data API
-function getCueData(videoId){
-	var xhr = new XMLHttpRequest();
-	xhr.open("GET", TRACKPATH + videoId + ".vtt");
-	xhr.onreadystatechange = function() {
-	  if (xhr.readyState === 4 && xhr.status === 200) {
-	  	console.log(xhr.responseText);
-  	}
+function insertCue(tx, videoId, cue){
+}
+
+var numTracks = 0;
+// insert cues for a TextTrack
+function insertCues(videoId, cues) {
+  for (var i = 0; i != cues.length; ++i) {
+  	var cue = cues[i];
+  	if (typeof cue !== "undefined" && cue.text !== "") {
+			insertCue(tx, videoId, cues[i]);
+		}
   }
-	xhr.send();
 }
 
-function makeTrack(videoId){
-	var trackElement = document.createElement("track");
-	trackElement.default = true;
-	trackElement.src = tracksPath + videoId + trackSuffix;
-	trackElement.videoId = videoId; // adding property
-
-	var videoElement = document.createElement("video");
-	videoElement.appendChild(trackElement);
-	videoElement.style.display = "none";
-	// must add videoElement to body for track load event to fire :^\
-	document.body.appendChild(videoElement);
-
-	trackElement.addEventListener("load", function() {
-		var textTrack = this.track;
-		insertCues(this.videoId, textTrack.cues);
-	});
-}
-
-function getVideoData() {
-	// the keys for the videos object, defined in videos.js, are YouTube IDs
-	for (var id in videos) {
-		getCueData(id); // get cue data from .vtt files in tracks folder
-		getYouTubeData(id); // update video data from the YouTube data API
-	}
-}
+// http://storage.googleapis.com/io2012/headshots/mkwst.jpg
 
 var youTubePlayer = document.querySelector(".youtube-player");
 // toggle display of cue or query results
