@@ -1,5 +1,5 @@
 var trackPath = "tracks/";
-var trackSuffix = ".vtt";
+var trackSuffix = ".srt";
 var resultsDiv = $("#results");
 var query;
 var $query = $("#query");
@@ -16,7 +16,7 @@ if (q){
 	$numResults.html("Searching...");
 	setTimeout(function(){
 		getResults(query);
-	}, 1500); // magic number! gives time for data to be downloaded
+	}, 500); // magic number! gives time for data to be downloaded
 }
 
 function getVideoData() {
@@ -27,6 +27,10 @@ function getVideoData() {
 	}
 }
 
+function handleVideosComplete(){
+	console.log("finished! ", videos);
+}
+
 // update video data from YouTube data API
 function getCueData(videoId){
 	var xhr = new XMLHttpRequest();
@@ -35,41 +39,46 @@ function getCueData(videoId){
 	  if (xhr.readyState === 4 && xhr.status === 200) {
 	  	var track = xhr.responseText;
 	  	var lines = track.match(/^.*((\r\n|\n|\r)|$)/gm);
-	  	var cues = [];
-
-	  	var currentCue = {};
+	  	var cues = videos[videoId].cues = [];
+	  	var currentCue = {"text": "", "videoId": videoId};
 	  	for (var i = 0; i != lines.length; ++i){
 	  		var line = lines[i];
-	  		if (line.match(/^(\s|WEBVTT)\s*$/)){
-	  			console.log("ignored", line);
+	  		// if line is just a cue ID (i.e. just digits)
+	  		if (line.match(/^\d+\s*$/)){
+	  			if (currentCue.text) {
+	  				// get rid of redundant whitespace after combining lines
+	  				currentCue.text.trim();
+	  				cues.push(currentCue);
+				  	currentCue = {"text": "", "videoId": videoId}; // remove text!
+	  			}
+	  		} else if (line.match(/^\s*$/)){ // line is empty
 	  			continue;
-	  		} else if (line.match(/^(\d+\s*$/)){ // line is cue ID (digits) so push the current cue
-	  			currentCue
 	  		} else { // line is timings or text
 	  			var timings = line.match(/\d\d:\d\d:\d\d.\d\d\d/g);
-	  			if (timings.length === 1) {
-	  				console.log("Error getting timings: line is " + line);
-	  			}
-	  			if (timings.length === 2) { // line is timing
-	  				currentCue.startTime = timings[0];
-	  				currentCue.endTime = timing[1];
-					} else { // line is cue text
-						currentCue.text += line;
+	  		  if (!timings){ // line is text
+	  		  	// replace return with a space: cues may be split between two lines
+						currentCue.text += line.replace(/\n/, " ");
+					} else if (timings.length === 2) { // line is timing
+	  				currentCue.startTime = toDecimalSeconds(timings[0]);
 					}
 	  		}
 	  	}
-	  	videos[videoId].cues = cues; // add cues retrieved to video data
-  	}
-  	// check if finished
-  	for (id in videos){
-  		// check if there is a video without cues
-  		if (!videos[id].cues){
-  			console.log("videos[id].cues: ", videos[id].cues);
-  			break;
-  		}
-//  		console.log(videos); // all videos now have cue data
-  	}
-  }
+
+  		var isIncomplete = false;
+	  	// check if finished
+	  	for (id in videos){
+	  		// check if there is a video without cues
+	  		if (typeof videos[id].cues === "undefined"){
+	  			isIncomplete = true;
+	  			break;
+	  		}
+	  	}
+	  	if (!isIncomplete) {
+	  		handleVideosComplete();
+	  	}
+
+  	} // xhr.readyState === 4 && xhr.status === 200
+  } // xhr.onreadystatechange
 	xhr.send();
 }
 
@@ -119,7 +128,7 @@ function addClickHandler(cueDiv, cue) {
 	});
 }
 
-function displayResults(transaction, results) {
+function displayResults(results) { // results is an array of cues
 	document.querySelector("*").style.cursor = "";
 	resultsDiv.empty();
   $("#numResults").empty();
@@ -127,11 +136,11 @@ function displayResults(transaction, results) {
     return false;
   }
 
-	var numResults = results.rows.length;
+	var numResults = results.length;
 	var currentVideoId, videoDiv, cuesDiv;
 	var i;
-	// hack: to enable matching (for example) two letter combinations
-	// but avoiding matches for common combinations
+	// enable searching for two letter combinations (for example)
+	// but don't show results when there are too many matches
 	if (numResults > 5000){
 		$numResults.html(numResults + " results (too many to display)");
 		return;
@@ -139,7 +148,7 @@ function displayResults(transaction, results) {
 		$numResults.html(numResults + " result(s)");
 	}
   for (i = 0; i !== numResults; ++i) {
-    var cue = results.rows.item(i);
+    var cue = results[i];
 		// for each video (i.e. new currentVideoId)
 		// create divs and add the video title,
 		// then add a click handler to display video
@@ -149,7 +158,8 @@ function displayResults(transaction, results) {
 			videoDiv = $("<div class='video' />");
 
 			var detailsDiv = $("<details class='videoDetails' />");
-			detailsDiv.append("<summary class='videoTitle' title='Click to view video information'>" + video.title + "</summary>");
+			detailsDiv.append("<summary class='videoTitle' title='Click to view video information'>" +
+					video.title + "</summary>");
 			detailsDiv.append("<img class='videoThumbnail' src='http://img.youtube.com/vi/" +
 				currentVideoId + "/hqdefault.jpg' title='Default thumbnail image' />");
 			if (!!video.summary){
@@ -170,8 +180,10 @@ function displayResults(transaction, results) {
 			resultsDiv.append(videoDiv);
 		}
 
-		var cueStartTimeHTML = "<span class='cueStartTime'>" + toMinSec(cue.startTime) + ": </span>";
-		var cueTextHTML = cue.text.replace(new RegExp("(" + query + ")", "gi"), "<em>$1</em>"); // empasise query
+		var cueStartTimeHTML = "<span class='cueStartTime'>" +
+			toHoursMinutesSeconds(cue.startTime) + ": </span>";
+		var cueTextHTML = cue.text.replace(new RegExp("(" + query +
+			")", "gi"), "<em>$1</em>"); // empasise query
 		cueTextHTML = "<span class='cueText'>" + cueTextHTML + "</span>";
 		// add cue to div.cues
 		var cueDiv =
@@ -187,13 +199,25 @@ function displayResults(transaction, results) {
 function getResults(query){
 	document.querySelector("*").style.cursor = "wait";
 	$numResults.html("Searching...");
-	// doReadQuery(statement, displayResults);
+	var cues = [];
+	for (id in videos){
+		var video = videos[id];
+		for (var i = 0; i != video.cues.length; ++i) {
+			var cue = video.cues[i];
+			var re = new RegExp(query, "i");
+			if (re.test(cue.text)) {
+				cues.push(cue);
+			}
+		}
+	}
+	displayResults(cues);
 }
 
 $query.bind('input', function() {
 	resultsDiv.empty();
 	query = $(this).val();
   if (query.length < 2) {
+  	$numResults.empty();
     return false;
   }
   // add 300ms delay between getting keypresses
@@ -215,13 +239,23 @@ function elapsedTimer(message) {
     }
 }
 
-// Convert decimal time to mm:ss, e.g. convert 123.3 to 2:03
-function toMinSec(decimalSeconds){
-	var mins = Math.floor(decimalSeconds/60);
+// srt format is 01:01:58,310 (it's French, hence the comma)
+// hours:minutes:seconds,milliseconds
+function toDecimalSeconds(srtTime) {
+	var split = srtTime.match(/\d{2}/g);
+	// hours, minutes, seconds -- ignore milliseconds
+	return split[0] * 3600 + split[1] * 60 + split[2] * 1; // must convert from string
+}
+
+// Convert decimal time to hh:mm:ss
+// e.g. convert 123.3 to 2:03
+function toHoursMinutesSeconds(decimalSeconds){
+	var hours = Math.floor(decimalSeconds/3600);
+	var mins = Math.floor((decimalSeconds - hours * 3600)/60);
 	var secs = Math.floor(decimalSeconds % 60);
 	if (secs < 10) {
 		secs = "0" + secs
 	};
-	return mins + ":" + secs;
+	return hours + ":" + mins + ":" + secs;
 }
 
