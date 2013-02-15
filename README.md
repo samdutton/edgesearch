@@ -2,11 +2,11 @@
   <p style="border-bottom: 1px solid #444; padding: 0 0 1em 0;">Click on a result to view video.</p>
   <p>A timed transcript file in SRT format for each video is stored in the <em>tracks</em> folder. SRT files look like this (each item is called a cue): </p>
   <pre>1
-00:00:00,000 --> 00:00:05,550
+00:00:00,000 --> 00:00:05,550   
 2
 00:00:05,550 --> 00:00:06,410
 JAKE ARCHIBALD: Good
-morning, everyone.
+morning, everyone.   
 3
 00:00:06,410 --> 00:00:11,140
 Welcome to the offline
